@@ -1,0 +1,104 @@
+<!doctype html>
+<html lang="th">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="theme-color" content="#120a24">
+<title>Elemental Defenders</title>
+<link rel="icon" href="assets/ui/logo.png">
+<link rel="apple-touch-icon" href="assets/ui/logo.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Kanit:wght@400;600;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+<!-- LOADING -->
+<section id="scr-loading" class="screen active">
+  <img src="assets/ui/logo.png" class="load-logo" alt="Elemental Defenders">
+  <div class="load-bar"><i id="load-fill"></i></div>
+  <p class="load-txt" id="load-txt">กำลังเรียกพลังธาตุ…</p>
+</section>
+
+<!-- TITLE -->
+<section id="scr-title" class="screen">
+  <div class="title-box">
+    <img src="assets/ui/title.jpg" alt="Elemental Defenders title screen" draggable="false">
+    <button class="hot" id="t-new" style="left:39%;top:47%;width:22%;height:11%" aria-label="เริ่มเกม"></button>
+    <button class="hot" id="t-load" style="left:39%;top:59.3%;width:22%;height:9.8%" aria-label="โหลดเกม"></button>
+    <button class="hot" id="t-set" style="left:39.6%;top:70.6%;width:21%;height:8.6%" aria-label="ตั้งค่า"></button>
+    <button class="hot" id="t-exit" style="left:39.6%;top:81%;width:21%;height:8.6%" aria-label="ออกเกม"></button>
+    <div class="title-ver">v1.0 · เซฟอัตโนมัติในเบราว์เซอร์นี้</div>
+  </div>
+</section>
+
+<!-- WORLD MAP / STAGE SELECT -->
+<section id="scr-world" class="screen">
+  <div class="world-bg" id="world-bg"></div>
+  <header class="world-head">
+    <button class="btn ghost" id="w-back">‹ หน้าหลัก</button>
+    <div class="world-title"><img src="assets/ui/logo.png" alt=""><div><b>แผนที่การผจญภัย</b><small id="w-sub"></small></div></div>
+    <button class="btn gold" id="w-codex">🏆 สมุดบันทึก</button>
+  </header>
+  <div class="continue-bar hidden" id="w-continue"></div>
+  <div class="stage-grid" id="stage-grid"></div>
+</section>
+
+<!-- GAME -->
+<section id="scr-game" class="screen">
+  <div class="hud">
+    <div class="hud-l">
+      <div class="chip castle"><span class="ico">🏰</span><div class="hpbar"><i id="h-hpfill"></i></div><b id="h-hp">100</b></div>
+      <div class="chip gold"><span class="ico">🪙</span><b id="h-gold">0</b></div>
+      <div class="chip hidden" id="h-tokchip" title="ตั๋วผสมฟรี"><span class="ico">⚗</span><b id="h-tok">0</b></div>
+      <div class="chip"><span class="ico">⚔</span><b id="h-wave">0/0</b></div>
+      <div class="chip" id="h-timechip"><span class="ico">⏳</span><b id="h-time">0:00</b></div>
+    </div>
+    <div class="hud-c">
+      <div class="next-prev" id="h-next"></div>
+      <button class="btn call" id="h-call">▶ เริ่มเวฟ</button>
+    </div>
+    <div class="hud-r">
+      <span class="stage-tag" id="h-stage"></span>
+      <button class="btn sq" id="h-speed">×1</button>
+      <button class="btn sq" id="h-pause">❚❚</button>
+    </div>
+  </div>
+  <div class="play" id="play">
+    <canvas id="cv"></canvas>
+    <div class="radial hidden" id="radial"></div>
+    <aside class="panel hidden" id="panel"></aside>
+    <div class="banner" id="banner"></div>
+    <div class="toasts" id="toasts"></div>
+  </div>
+  <div class="dock">
+    <div class="build" id="build"></div>
+    <div class="dock-hint" id="hint">แตะช่องว่างเพื่อสร้างหอ · แตะหอเพื่อดูข้อมูล · <b>ลากหอไปวางบนหออื่นเพื่อผสม</b></div>
+  </div>
+</section>
+
+<!-- FAREWELL -->
+<section id="scr-bye" class="screen">
+  <div class="bye"><img src="assets/ui/logo.png" alt=""><h2>ขอบคุณที่ปกป้องอาณาจักร!</h2><p>ความคืบหน้าถูกบันทึกไว้ในเบราว์เซอร์นี้แล้ว ปิดแท็บได้เลย</p><button class="btn gold" id="bye-back">กลับสู่หน้าหลัก</button></div>
+</section>
+
+<!-- MODAL -->
+<div class="modal-wrap hidden" id="modal"><div class="modal" id="modal-box"></div></div>
+<div class="rotate-hint">หมุนอุปกรณ์เป็นแนวนอนเพื่อประสบการณ์ที่ดีที่สุด ↻</div>
+
+<script src="js/manifest.js"></script>
+<script src="js/core.js"></script>
+<script src="js/towers.js"></script>
+<script src="js/monsters.js"></script>
+<script src="js/mapgen.js"></script>
+<script src="js/fx.js"></script>
+<script src="js/sprites.js"></script>
+<script src="js/audio.js"></script>
+<script src="js/music.js"></script>
+<script src="js/save.js"></script>
+<script src="js/game.js"></script>
+<script src="js/ui.js"></script>
+</body>
+</html>
