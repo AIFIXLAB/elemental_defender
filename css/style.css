@@ -225,3 +225,27 @@ table.it td.g{background:#1b8a4c44}table.it td.b{background:#b0201a44}table.it t
 .wmode button{min-width:64px;min-height:40px;padding:4px 14px;border-radius:12px;font-size:18px;font-weight:800;background:linear-gradient(#45307a,#1c1033);border:2px solid #9a7ad8;box-shadow:0 3px 0 #000a}
 .wmode button.on{background:linear-gradient(#ffe68a,#f2a92a 55%,#c26a0c);color:#3a1d00;border-color:#fff1b0}
 .wave-list .bossrow{background:#ff5a5a22;border:1px solid #ff5a5a55}
+
+.whead-btns{display:flex;gap:8px}
+.ticon{display:inline-block;flex:none;background-image:url(../assets/ui/trophies.png);background-repeat:no-repeat;filter:drop-shadow(0 2px 4px #000a)}
+.rrow{display:flex;flex-wrap:wrap;gap:6px;margin:4px 0}
+.rchip{padding:3px 10px;border-radius:10px;font-size:13px;font-weight:700;border:1px solid var(--c);color:var(--c);background:color-mix(in srgb,var(--c) 14%,#0008)}
+.tgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:8px;max-height:58vh;overflow:auto;padding-right:4px}
+.tcard{position:relative;display:flex;gap:10px;align-items:center;padding:8px 10px;border-radius:14px;background:#0006;border:1px solid #fff1}
+.tcard .ticon{filter:grayscale(1) brightness(.45)}
+.tcard.won{border-color:var(--c);background:linear-gradient(90deg,color-mix(in srgb,var(--c) 22%,#0008),#0006);box-shadow:0 0 12px color-mix(in srgb,var(--c) 35%,transparent)}
+.tcard.won .ticon{filter:drop-shadow(0 0 8px var(--c))}
+.tinfo{display:flex;flex-direction:column;gap:2px;min-width:0;font-size:12px}
+.tinfo b{font-size:13px;color:#fff6e2}
+.tinfo span{color:var(--mut);line-height:1.3}
+.tinfo em{font-style:normal;font-size:11px;color:var(--c)}
+.tbar{height:6px;border-radius:4px;background:#0009;overflow:hidden;margin-top:2px}
+.tbar i{display:block;height:100%;background:var(--c)}
+.rtag{position:absolute;right:8px;top:6px;font-size:10px;color:var(--c)}
+.tpops{position:fixed;right:16px;top:70px;z-index:40;display:flex;flex-direction:column;gap:8px;pointer-events:none}
+.tpop{display:flex;align-items:center;gap:10px;padding:8px 14px 8px 8px;border-radius:16px;max-width:340px;background:linear-gradient(90deg,#2a1a4ef5,#140b28f2);border:2px solid var(--c);box-shadow:0 0 24px color-mix(in srgb,var(--c) 60%,transparent),0 8px 20px #000a;animation:tin .4s ease-out both}
+.tpop div{display:flex;flex-direction:column;font-size:12px;color:var(--mut)}
+.tpop small{color:var(--c);font-weight:700}
+.tpop b{font-size:16px;color:#fff}
+.tpop.out{animation:tout .5s ease-in both}
+@media (max-width:700px){.whead-btns .btn{font-size:12px;padding:4px 8px}}

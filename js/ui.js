@@ -51,6 +51,10 @@
     const b = modal(`<button class="close">×</button><h2>⚙ ตั้งค่า</h2>
       <div class="set-row"><span>🎵 เพลงประกอบ</span>${seg('music', [[true, 'เปิด'], [false, 'ปิด']])}</div>
       <div class="set-row"><span>ระดับเพลง</span><input type="range" min="0" max="1" step="0.05" value="${S.mvol}" id="s-mvol"></div>
+      <div class="set-row"><span>สไตล์เพลง</span>${seg('mStyle', Object.entries(ED.Music.STYLES).map(([k, v]) => [k, v.th]))}</div>
+      <div class="set-row"><span>ความถี่ทำนอง</span>${seg('mDensity', [[0.6, 'โปร่ง'], [1, 'ปกติ'], [1.4, 'แน่น']])}</div>
+      <div class="set-row"><span>ความเร็วเพลง</span>${seg('mTempo', [[0.88, 'ช้า'], [1, 'ปกติ'], [1.12, 'เร็ว']])}</div>
+      <div class="set-row"><span>ทำนองตอนนี้</span><button class="btn" id="s-reroll">🎲 สุ่มทำนองใหม่</button></div>
       <div class="set-row"><span>🔊 เสียงเอฟเฟกต์</span>${seg('sound', [[true, 'เปิด'], [false, 'ปิด']])}</div>
       <div class="set-row"><span>ระดับเอฟเฟกต์</span><input type="range" min="0" max="1" step="0.05" value="${S.vol}" id="s-vol"></div>
       <div class="set-row"><span>คุณภาพเอฟเฟกต์</span>${seg('quality', [[0.5, 'ต่ำ'], [1, 'ปกติ'], [1.5, 'สูง']])}</div>
@@ -59,10 +63,12 @@
       <p style="font-size:12px">เซฟเกมเก็บไว้ในเบราว์เซอร์ของคุณ (localStorage) อัตโนมัติ — คนอื่นที่เปิดเว็บเดียวกันจะไม่เห็นเซฟของคุณ ไม่ต้องตั้งรหัส</p>
       <div class="acts"><button class="btn gold" id="s-ok">ตกลง</button></div>`, 'small');
     b.querySelectorAll('.seg').forEach(sg => sg.querySelectorAll('button').forEach(bt => bt.onclick = () => {
-      const key = sg.dataset.k; let v = bt.dataset.v; v = v === 'true' ? true : v === 'false' ? false : parseFloat(v);
+      const key = sg.dataset.k; let v = bt.dataset.v; v = v === 'true' ? true : v === 'false' ? false : isNaN(parseFloat(v)) ? v : parseFloat(v);
       S[key] = v; sg.querySelectorAll('button').forEach(x => x.classList.toggle('on', x === bt)); applySettings(); click();
+      if (key === 'mStyle' || key === 'mTempo' || key === 'mDensity') ED.Music.restyle();
     }));
     b.querySelector('#s-vol').oninput = (e) => { S.vol = parseFloat(e.target.value); applySettings(); };
+    b.querySelector('#s-reroll').onclick = () => { click(); ED.Music.rerollMelody(); };
     b.querySelector('#s-mvol').oninput = (e) => { S.mvol = parseFloat(e.target.value); applySettings(); };
     b.querySelector('#s-wipe').onclick = () => confirmBox('ลบเซฟทั้งหมด?', 'ข้อมูลด่าน ดาว และสมุดค้นพบจะหายทั้งหมด', 'ลบเลย', () => { ED.save.wipe(); if (!fromGame) show('scr-title'); }, true);
     const done = () => { click(); closeModal(); if (fromGame) pauseMenu(); };
@@ -76,6 +82,7 @@
     const d = ED.save.data;
     $('#world-bg').style.backgroundImage = `url(assets/maps/map${String(21 + (d.highest * 7) % 10).padStart(2, '0')}.jpg)`;
     $('#w-sub').textContent = `⭐ ${ED.save.totalStars()} ดาว · ค้นพบหอ ${Object.keys(d.discovered).length.toLocaleString()} / ${ED.countAllTowerForms().toLocaleString()} แบบ`;
+    $('#w-tcount').textContent = ED.T.count() + '/200'; ED.T.check(true);
     const cont = $('#w-continue');
     if (d.current && d.current.snap) {
       cont.classList.remove('hidden');
@@ -156,7 +163,7 @@
     const g = ui.game; if (!g || !$('#scr-game').classList.contains('active')) return;
     if (!ui.paused && g.state !== 'won' && g.state !== 'lost') {
       for (let i = 0; i < ui.speed; i++) g.update(dt);
-      ED.save.data.totals.playTime += dt;
+      ED.save.data.totals.playTime += dt; ED.T.add('playSec', dt); ED.T.check();
     } else if (g.state === 'won' || g.state === 'lost') ED.FX.update(dt);
     ctx.setTransform(k, 0, 0, k, 0, 0);
     ctx.imageSmoothingEnabled = true; ctx.imageSmoothingQuality = 'high';
@@ -470,10 +477,11 @@
     const b = modal(`<h2>❚❚ หยุดชั่วคราว</h2><p>ด่าน ${g.stage} · ${g.map.biome.th} · เวฟ ${g.waveIdx}/${g.endless ? '∞' : g.waves.length}</p>
       <p style="font-size:12px">การบันทึกจะเก็บสถานะล่าสุดที่สนามว่าง (ระหว่างเวฟ)</p>
       <div class="acts" style="flex-direction:column;align-items:stretch">
-      <button class="btn green" id="pz-go">▶ เล่นต่อ</button><button class="btn" id="pz-codex">📖 สมุดบันทึก / ตารางธาตุ</button><button class="btn" id="pz-set">⚙ ตั้งค่า</button>
+      <button class="btn green" id="pz-go">▶ เล่นต่อ</button><button class="btn" id="pz-codex">📖 สมุดบันทึก / ตารางธาตุ</button><button class="btn" id="pz-troph">🏆 ถ้วยรางวัล</button><button class="btn" id="pz-set">⚙ ตั้งค่า</button>
       <button class="btn" id="pz-restart">↻ เริ่มด่านนี้ใหม่ (แผนที่เดิม)</button><button class="btn red" id="pz-quit">💾 บันทึกและออกไปแผนที่โลก</button></div>`, 'small');
     b.querySelector('#pz-go').onclick = () => { click(); closeModal(); ui.paused = false; ED.Audio.setDuck(false); };
     b.querySelector('#pz-codex').onclick = () => { click(); codex('towers', true); };
+    b.querySelector('#pz-troph').onclick = () => { click(); trophyRoom(null, true); };
     b.querySelector('#pz-set').onclick = () => { click(); settings(true); };
     b.querySelector('#pz-restart').onclick = () => { click(); ED.Audio.setDuck(false); confirmBox('เริ่มด่านใหม่?', 'หอและทองในด่านนี้จะถูกรีเซ็ต', 'เริ่มใหม่', () => { ED.save.clearCurrent(); startStage(g.stage, g.seed, null, g.waveCount); }); };
     b.querySelector('#pz-quit').onclick = () => { click(); ED.Audio.setDuck(false); g.refreshSnapshot(); ED.save.autosave(g); ED.save.persist(); closeModal(); ui.game = null; openWorld(); };
@@ -494,6 +502,40 @@
       b.querySelector('#r-retry').onclick = () => { click(); closeModal(); if (win) { ui.game = null; openWorld(); briefing(g.stage); } else startStage(g.stage, g.seed, null, g.waveCount); };
     }, win ? 900 : 1200);
     banner(win ? 'ชัยชนะ!' : 'พ่ายแพ้…', win ? '#ffd25a' : '#ff5a5a');
+  };
+
+  /* ================= TROPHIES ================= */
+  function trophyIcon(id, size) {
+    const i = id - 1, col = i % 20, row = Math.floor(i / 20); const s = size / 96;
+    return `<span class="ticon" style="width:${size}px;height:${size}px;background-size:${1920 * s}px ${960 * s}px;background-position:-${col * 96 * s}px -${row * 96 * s}px"></span>`;
+  }
+  ui.trophyIcon = trophyIcon;
+  function trophyRoom(cat, fromGame) {
+    ED.T.check(true);
+    const L = ED.T.LIST; const cats = [...new Map(L.map(t => [t[1], t[2]])).entries()];
+    cat = cat || ui.tCat || 'ALL'; ui.tCat = cat;
+    const R = ED.T.RARITY;
+    const byR = Object.keys(R).map(r => { const all = L.filter(t => t[5] === r); return `<span class="rchip" style="--c:${R[r].c}">${R[r].th} ${all.filter(t => ED.T.isWon(t[0])).length}/${all.length}</span>`; }).join('');
+    const items = L.filter(t => cat === 'ALL' || t[1] === cat).sort((a, b) => (ED.T.isWon(b[0]) - ED.T.isWon(a[0])) || (ED.T.progress(b).k - ED.T.progress(a).k) || a[0] - b[0]);
+    const b = modal(`<button class="close">×</button><h2>🏆 ถ้วยรางวัล <small style="font-size:16px;color:var(--mut)">${ED.T.count()} / ${L.length}</small></h2>
+      <div class="rrow">${byR}</div>
+      <div class="tabs">${[['ALL', 'ทั้งหมด']].concat(cats).map(([k, l]) => `<button data-c="${k}" class="${k === cat ? 'on' : ''}">${l}</button>`).join('')}</div>
+      <div class="tgrid">${items.map(t => {
+        const w = ED.T.isWon(t[0]), p = ED.T.progress(t), r = R[t[5]] || R.Rare;
+        return `<div class="tcard ${w ? 'won' : ''}" style="--c:${r.c}">${trophyIcon(t[0], 56)}<div class="tinfo"><b>#${String(t[0]).padStart(3, '0')} ${t[3]}</b><span>${t[4]}</span>
+          ${w ? `<em>✔ ปลดล็อก ${new Date(ED.save.data.trophies[t[0]]).toLocaleDateString('th-TH')}</em>` : `<div class="tbar"><i style="width:${(p.k * 100).toFixed(1)}%"></i></div><em>${U.fmt(Math.min(p.v, p.t))} / ${U.fmt(p.t)}</em>`}</div><span class="rtag">${r.th}</span></div>`;
+      }).join('')}</div>`);
+    b.querySelector('.close').onclick = () => { click(); closeModal(); if (fromGame) pauseMenu(); };
+    b.querySelectorAll('.tabs button').forEach(x => x.onclick = () => { click(); trophyRoom(x.dataset.c, fromGame); });
+  }
+  ui.trophyRoom = trophyRoom;
+  ui.onTrophy = function (tr) {
+    const r = ED.T.RARITY[tr[5]] || ED.T.RARITY.Rare;
+    const box = $('#tpop'); const d = document.createElement('div'); d.className = 'tpop'; d.style.setProperty('--c', r.c);
+    d.innerHTML = `${trophyIcon(tr[0], 64)}<div><small>ปลดล็อกถ้วยรางวัล! · ${r.th}</small><b>${tr[3]}</b><span>${tr[4]}</span></div>`;
+    box.appendChild(d); ED.Audio.play('discover');
+    setTimeout(() => { d.classList.add('out'); setTimeout(() => d.remove(), 500); }, 4200);
+    const tc = $('#w-tcount'); if (tc) tc.textContent = ED.T.count() + '/200';
   };
 
   /* ================= CODEX ================= */
@@ -537,7 +579,8 @@
       const T = d.totals;
       body.innerHTML = `<div class="res-grid"><div><b>${d.highest - 1}</b>ด่านสูงสุดที่ผ่าน</div><div><b>⭐${ED.save.totalStars()}</b>ดาวรวม</div><div><b>${T.wins}</b>ชนะ</div><div><b>${T.losses}</b>แพ้</div>
         <div><b>${U.fmt(T.kills)}</b>สังหารรวม</div><div><b>${T.merges}</b>ผสมรวม</div><div><b>${Object.keys(d.discovered).length}</b>หอที่ค้นพบ</div><div><b>${Math.floor(T.playTime / 60)}</b>นาทีที่เล่น</div></div>
-        <p>เซฟนี้อยู่ในเบราว์เซอร์ของคุณเท่านั้น</p>`;
+        <p>เซฟนี้อยู่ในเบราว์เซอร์ของคุณเท่านั้น</p><div class="acts"><button class="btn gold" id="cx-tr">🏆 เปิดห้องถ้วยรางวัล (${ED.T.count()}/200)</button></div>`;
+      body.querySelector('#cx-tr').onclick = () => { click(); trophyRoom(null, fromGame); };
     }
   }
   function codexLab(counts, fromGame, body) {
@@ -560,11 +603,12 @@
   function boot() {
     cv = $('#cv'); ctx = cv.getContext('2d');
     ED.save.load(); ED.FX.quality = ED.settings.quality;
-    initTitle(); initInput();
+    initTitle(); initInput(); ED.T.dayTick(); setInterval(() => { if (!ui.game || ui.paused) { ED.T.add('playSec', 5); } ED.T.dayTick(); ED.T.check(); }, 5000);
     const unlock = () => { ED.Audio.init(); ED.Audio.preload(); ED.Audio.apply(); };
     document.addEventListener('pointerdown', unlock, { capture: true }); document.addEventListener('keydown', unlock, { capture: true });
     $('#w-back').onclick = () => { click(); show('scr-title'); };
     $('#w-codex').onclick = () => { click(); codex('rank'); };
+    $('#w-troph').onclick = () => { click(); trophyRoom(); };
     $('#h-call').onclick = callWave;
     $('#h-pause').onclick = () => { click(); pauseMenu(); };
     $('#h-speed').onclick = () => { click(); ui.speed = ui.speed === 1 ? 2 : ui.speed === 2 ? 3 : 1; $('#h-speed').textContent = '×' + ui.speed; };

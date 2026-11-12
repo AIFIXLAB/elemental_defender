@@ -29,6 +29,8 @@
       this.loots = this.map.loot.map(l => this.makeLootEnt(l));
       this.slotCanvas = ED.buildSlotCanvas(this.map);
       if (opts.resume) this.restore(opts.resume);
+      this.waveKills = 0; this.leakSince = false; this.noLeakRun = 0;
+      ED.T && ED.T.onStart(this, !!opts.resume);
       this.snapshot = this.serialize();
     }
 
@@ -58,7 +60,7 @@
       if (this.gold < C.TOWER_COST) return { ok: false, msg: 'ทองไม่พอ' };
       this.gold -= C.TOWER_COST;
       const t = this.addTower(ED.basicCounts(el), c, r, C.TOWER_COST);
-      this.stats.built++; this.refreshSnapshot();
+      this.stats.built++; ED.T.add('builds'); ED.T.add('trades'); ED.T.set('elemBuilt', el); ED.T.max('maxTowersField', this.towers.length); this.refreshSnapshot();
       FX.ring(t.x, t.y + 30, el, 10, 60, 0.5, 6); FX.burst(t.x, t.y, el, 14, 140, 26, { up: 80 });
       ED.Audio.play('build');
       this.discover(t.spec);
@@ -71,7 +73,7 @@
     }
     sell(t) {
       const refund = Math.floor(t.value * C.SELL_REFUND);
-      this.gold += refund; this.towers = this.towers.filter(x => x !== t);
+      this.gold += refund; this.towers = this.towers.filter(x => x !== t); this.stats.sells = (this.stats.sells || 0) + 1; ED.T.add('sellGold', refund); ED.T.add('trades');
       FX.text(t.x, t.y - 40, '+' + refund, '#ffd84a', 26, { bold: 1 }); FX.burst(t.x, t.y, 'LIGHT', 10, 120, 20);
       ED.Audio.play('sell'); this.refreshSnapshot();
     }
@@ -79,7 +81,7 @@
       const chk = ED.mergeCheck(list, this.gold, this.freeMerges);
       if (!chk.ok) return { ok: false, msg: chk.reasons.join(' · ') };
       anchor = anchor || list[0];
-      if (chk.free) this.freeMerges--; else this.gold -= chk.fee;
+      if (chk.free) { this.freeMerges--; ED.T.add('freeMergesUsed'); } else this.gold -= chk.fee;
       const value = list.reduce((a, t) => a + t.value, 0) + chk.fee;
       // เอฟเฟกต์: พลังงานพุ่งเข้าหาหอหลัก
       list.forEach(t => {
@@ -94,7 +96,7 @@
       FX.ring(nt.x, nt.y + 30, el, 10, 160, 0.8, 10); FX.ring(nt.x, nt.y + 30, nt.spec.sec || el, 10, 120, 0.6, 6);
       FX.burst(nt.x, nt.y - 40, el, 40, 260, 34, { up: 120 });
       FX.shake(8, 0.3);
-      this.stats.merges++;
+      this.stats.merges++; ED.T.add('merges'); if (nt.spec.tier >= 3) ED.T.add('tier3made'); if (nt.spec.tier >= 5) ED.T.add('tier5made'); if (nt.spec.k >= 3) ED.T.add('triMade');
       ED.Audio.play('merge');
       this.discover(nt.spec); this.refreshSnapshot();
       return { ok: true, tower: nt, fee: chk.fee };
@@ -109,12 +111,13 @@
       if (this.waveIdx >= this.waves.length) return 0;
       let bonus = 0;
       if (this.started && this.nextWaveTimer > 0) bonus = Math.floor(this.nextWaveTimer * C.EARLY_CALL_BONUS * Math.pow(C.GOLD_GROWTH, this.stage - 1));
-      this.gold += bonus;
+      this.gold += bonus; if (bonus > 0) { ED.T.add('earlyCalls'); ED.T.add('goldEarned', bonus); }
+      this.waveKills = 0; if (!this.started) this.startT = this.time;
       const w = this.waves[this.waveIdx];
       this.spawners.push({ w, i: 0, t: 0, idx: this.waveIdx });
       this.waveIdx++;
       this.nextWaveTimer = this.waveIdx < this.waves.length ? C.WAVE_GAP + Math.min(25, w.duration) : 0;
-      if (this.waveIdx > 1) { const wb = Math.round((C.WAVE_CLEAR_GOLD + 0.6 * this.waveIdx) * Math.pow(C.GOLD_GROWTH, this.stage - 1)); this.gold += wb; bonus += wb; }
+      if (this.waveIdx > 1) { const wb = Math.round((C.WAVE_CLEAR_GOLD + 0.6 * this.waveIdx) * Math.pow(C.GOLD_GROWTH, this.stage - 1)); this.gold += wb; bonus += wb; ED.T.add('goldEarned', wb); ED.T.add('waveBonuses'); }
       this.started = true; this.state = 'run';
       ED.Audio.play('wave');
       w.groups.forEach(g => { ED.save.data.seen[g.sp.key] = 1; });
@@ -141,7 +144,9 @@
     }
 
     /* ---------------- damage & status ---------------- */
-    setT(m, key, amt, dur) { const s = m.st[key]; if (!s) m.st[key] = [amt, dur]; else { s[0] = Math.max(s[0], amt); s[1] = Math.max(s[1], dur); } }
+    setT(m, key, amt, dur) {
+      if (key === 'stun' || key === 'root') { dur *= Math.pow(0.75, m.ten || 0); m.ten = (m.ten || 0) + 1; if (dur < 0.05) return; }
+      const s = m.st[key]; if (!s) m.st[key] = [amt, dur]; else { s[0] = Math.max(s[0], amt); s[1] = Math.max(s[1], dur); } }
     stat(m, key) { const s = m.st[key]; return s && s[1] > 0 ? s[0] : 0; }
     /* amount = ดาเมจพื้นฐาน; shares = สัดส่วนธาตุของแหล่งดาเมจ */
     hit(m, amount, src, opts) {
@@ -174,6 +179,7 @@
         if (rel === 'adv' && Math.random() < 0.35) FX.text(m.x + 26, m.y - 70 * m.size, '×' + C.ADV_MULT, '#ffcc4a', 16);
         if (rel === 'dis' && Math.random() < 0.25) FX.text(m.x + 26, m.y - 70 * m.size, '×' + C.DIS_MULT, '#8892a6', 15);
       }
+      if (spec && !opts.pure && !opts.noText) { const rl = ED.relation(spec.dom, m.el); if (rl === 'adv') ED.T.add('advHits'); else if (rl === 'dis') ED.T.add('disHits'); }
       // Elemental Interaction (แยกจากตัวคูณ)
       if (!opts.noProc && spec) {
         for (let i = 0; i < 6; i++) {
@@ -211,7 +217,7 @@
       if (x.root && !m.boss) this.setT(m, 'root', 1, x.root);
       if (x.poison) this.setT(m, 'poison', x.poison, x.dur || 5);
       if (x.plague) m.plague = x.plague;
-      if (x.knock) m.d = Math.max(0, m.d - x.knock * CELL * (m.boss ? 0.35 : 1));
+      if (x.knock) { m.d = Math.max(0, m.d - x.knock * CELL * (m.boss ? 0.35 : 1) * Math.pow(0.75, m.ten || 0)); m.ten = (m.ten || 0) + 1; }
       if (x.curse) this.setT(m, 'curse', x.curse, x.dur || 4);
     }
     riderExtra(sk) {
@@ -227,6 +233,7 @@
     interact(m, it, base, src) {
       if (!it) return;
       const f = it.fx;
+      ED.T.add('interactions'); ED.T.set('interTypes', it.id + ':' + m.el + '<' + (src && src.spec ? src.spec.dom : ''));
       const col = it.good ? '#7dffb0' : '#ff7a7a';
       FX.text(m.x, m.y - 80 * m.size, it.th, col, 17, { life: 1.1, vy: -40 });
       if (f.burn) { this.setT(m, 'burn', base * f.burn, f.dur); FX.burst(m.x, m.y - 20, 'FIRE', 8, 90, 24, { up: 60 }); }
@@ -249,11 +256,13 @@
       if (f.healBlock) this.setT(m, 'healBlock', 1, f.dur);
       if (f.weaken) this.setT(m, 'weaken', f.weaken, f.dur);
       if (f.ground && m.flying) this.setT(m, 'ground', 1, f.dur);
-      if (f.knock) m.d = Math.max(0, m.d - f.knock * CELL * (m.boss ? 0.3 : 1));
+      if (f.knock) { m.d = Math.max(0, m.d - f.knock * CELL * (m.boss ? 0.3 : 1) * Math.pow(0.75, m.ten || 0)); m.ten = (m.ten || 0) + 1; }
     }
     kill(m) {
       if (!m.alive) return; m.alive = false;
-      this.gold += m.gold; this.stats.kills++;
+      this.gold += m.gold; this.stats.kills++; ED.T.add('goldEarned', m.gold); ED.T.add('kills'); ED.T.set('speciesKilled', m.sp.key);
+      this.waveKills++; ED.T.max('maxKillsWave', this.waveKills);
+      if (m.boss) { ED.T.add('bossKills'); ED.T.set('bossTraits', m.trait); if (m.boss === true) { ED.T.add('bigBossKills'); if (this.towers.length <= 5) ED.T.max('bossFew5', 1); if (this.towers.length <= 3) ED.T.max('bossFew3', 1); if (this.castleHp >= this.castleMax) ED.T.add('bossNoDamage'); } }
       if (m.lastTower) m.lastTower.kills++;
       FX.text(m.x, m.y - 20, '+' + m.gold, '#ffd84a', 18, { vy: -50 }); if (m.elite || m.boss) ED.Audio.play('coin');
       FX.impact(m.x, m.y - 20, m.el, m.boss || m.elite);
@@ -312,15 +321,16 @@
       this.map.grid[L.r][L.c] = 0; this.slotCanvas = ED.buildSlotCanvas(this.map);
       const gs = Math.pow(C.GOLD_GROWTH, this.stage - 1) * (1 + 0.03 * this.waveIdx);
       let msg = '';
+      ED.T.add('lootBroken'); ED.T.set('lootKinds', L.kind); if (L.kind === 'chest') ED.T.add('chests'); if (L.kind === 'crystal') { ED.T.add('crystals'); ED.T.set('crystalElems', L.el); } if (L.kind === 'fountain') ED.T.add('fountains');
       FX.pillar(L.x, L.y + 40, L.kind === 'crystal' ? L.el : 'LIGHT', 40, 520, 0.8);
       FX.ring(L.x, L.y + 40, L.kind === 'crystal' ? L.el : 'LIGHT', 10, 130, 0.6, 10);
       FX.burst(L.x, L.y, 'LIGHT', 30, 240, 28, { up: 140, grav: 200 });
       FX.smoke(L.x, L.y + 20, '#6a5236', 6, 50, 0.9); FX.shake(5, 0.2);
       for (let i = 0; i < 10 * FX.quality; i++) FX.add({ k: 'glow', x: L.x, y: L.y, vx: (Math.random() - 0.5) * 300, vy: -200 - Math.random() * 200, el: 'LIGHT', size: 18, life: 0.9, drag: 1, grav: 600 });
       switch (L.kind) {
-        case 'crate': { const g = Math.round(C.LOOT_GOLD * gs); this.gold += g; msg = `+${g} 🪙`; break; }
+        case 'crate': { const g = Math.round(C.LOOT_GOLD * gs); this.gold += g; ED.T.add('goldEarned', g); msg = `+${g} 🪙`; break; }
         case 'chest': {
-          const g = Math.round(C.LOOT_GOLD * 3.5 * gs); this.gold += g; msg = `+${g} 🪙`;
+          const g = Math.round(C.LOOT_GOLD * 3.5 * gs); this.gold += g; ED.T.add('goldEarned', g); msg = `+${g} 🪙`;
           if (Math.random() < 0.35) { const e = ED.EL[Math.floor(Math.random() * 6)]; const nt = this.addTower(ED.basicCounts(e), L.c, L.r, C.TOWER_COST); this.discover(nt.spec); msg += ` + หอ${ED.ELEMENT[e].th}ฟรี!`; }
           break;
         }
@@ -445,7 +455,7 @@
       const opt = (o) => Object.assign({ procMul: 0.6 }, o || {}, ex ? { extra: Object.assign({}, ex, (o && o.extra) || {}) } : {});
       FX.text(t.x, t.y - 120, sk.th + '!', ED.ELEMENT[el].glow, 24, { bold: 1, life: 1.2, vy: -40 });
       ED.Audio.play('skill');
-      t.castFx = 0.6;
+      t.castFx = 0.6; ED.T.add('skills'); ED.T.set('skillFams', sk.fam);
       const main = inR[0];
       switch (sk.fam) {
         case 'FIRE': {
@@ -522,7 +532,7 @@
         case 'WIND+WATER': {
           FX.ring(t.x, t.y + 20, 'WATER', 20, s.range * CELL * 1.1, 0.8, 14); FX.shake(4, 0.3);
           for (let i = 0; i < 60 * FX.quality; i++) { const a = Math.random() * 6.28, r = Math.random() * s.range * CELL; FX.add({ k: 'glow', x: t.x + Math.cos(a) * r, y: t.y + Math.sin(a) * r * 0.6 - 80, vx: -40, vy: 120, el: 'WATER', size: 12, life: 0.9, drag: 0 }); }
-          inR.forEach(m => { this.hit(m, P, t, opt({ extra: { stun: sk.dur, bossOK: 1, slow: 0.3, dur: sk.dur + 1.5 } })); m.frozen = sk.dur * (m.boss ? 0.4 : 1); FX.burst(m.x, m.y - 20, 'WATER', 6, 90, 22); });
+          inR.forEach(m => { this.hit(m, P, t, opt({ extra: { stun: sk.dur, bossOK: 1, slow: 0.3, dur: sk.dur + 1.5 } })); m.frozen = sk.dur * (m.boss ? 0.4 : 1) * Math.pow(0.75, m.ten || 0); FX.burst(m.x, m.y - 20, 'WATER', 6, 90, 22); });
           break;
         }
         case 'LIGHT+DARK': {
@@ -582,9 +592,11 @@
       // เวลา
       this.timeLeft -= dt;
       if (this.timeLeft <= 0 && !this.overtime) { this.overtime = true; this.timeLeft = 0; ED.ui && ED.ui.banner('⏰ หมดเวลา! มอนสเตอร์คลั่ง', '#ff5a5a'); }
-      if (this.waveIdx < this.waves.length) { this.nextWaveTimer -= dt; if (this.nextWaveTimer <= 0) this.callWave(); }
+      const crowded = this.monsters.length >= C.MAX_ALIVE;
+      if (this.waveIdx < this.waves.length && !crowded) { this.nextWaveTimer -= dt; if (this.nextWaveTimer <= 0) this.callWave(); }
       // spawners
       for (const sp of this.spawners) {
+        if (crowded) break;
         sp.t += dt;
         while (sp.i < sp.w.queue.length && sp.w.queue[sp.i].t <= sp.t) { const q = Object.assign({ waveIdx: sp.idx }, sp.w.queue[sp.i]); this.spawnMonster(q); sp.i++; }
       }
@@ -598,7 +610,7 @@
       if (this.castleHit > 0) this.castleHit -= dt;
       // snapshot เมื่อสนามว่าง
       if (!this.monsters.length && !this.spawners.length && this.waveIdx < this.waves.length) {
-        if (!this._clean) { this._clean = true; this.snapshot = this.serialize(); ED.save.autosave(this); if (this.waveIdx > 0) { ED.Audio.play('waveclear'); ED.ui && ED.ui.banner('✦ เคลียร์เวฟ ' + this.waveIdx + '!', '#7dffb0'); } }
+        if (!this._clean) { this._clean = true; this.snapshot = this.serialize(); ED.save.autosave(this); if (this.waveIdx > 0) { ED.T.add('wavesCleared'); ED.T.max('maxWave', this.waveIdx); this.noLeakRun = this.leakSince ? 0 : this.noLeakRun + 1; this.leakSince = false; ED.T.max('maxNoLeakWaves', this.noLeakRun); if (this.waveIdx >= 10 && this.time - (this.startT || 0) <= 180) ED.T.max('fast10', 1); ED.Audio.play('waveclear'); ED.ui && ED.ui.banner('✦ เคลียร์เวฟ ' + this.waveIdx + '!', '#7dffb0'); } }
       } else this._clean = false;
       // จบเกม
       if (this.castleHp <= 0) { this.castleHp = 0; this.end(false); }
@@ -609,7 +621,7 @@
       for (const m of this.monsters) {
         if (!m.alive) continue;
         for (const k in m.st) { const s = m.st[k]; if (s[1] > 0) s[1] -= dt; }
-        m.hitFlash = Math.max(0, m.hitFlash - dt);
+        m.hitFlash = Math.max(0, m.hitFlash - dt); if (m.ten) m.ten = Math.max(0, m.ten - dt * 0.2);
         if (m.frozen) m.frozen = Math.max(0, m.frozen - dt);
         // DoT
         const burn = this.stat(m, 'burn'), poison = this.stat(m, 'poison');
@@ -637,7 +649,7 @@
           m.alive = false;
           let dmg = m.leak * (1 + this.stat(m, 'enrage')) * (1 - this.stat(m, 'weaken')) * (this.overtime ? 2 : 1);
           dmg = Math.max(1, Math.round(dmg));
-          this.castleHp -= dmg; this.stats.leaked++; this.castleHit = 0.4;
+          this.castleHp -= dmg; this.stats.leaked++; this.castleHit = 0.4; this.leakSince = true;
           FX.text(m.x, m.y - 60, '-' + dmg, '#ff4a4a', 30, { bold: 1 }); FX.shake(6, 0.25); FX.impact(m.x, m.y - 30, m.el, true);
           ED.Audio.play('leak');
         }
@@ -755,6 +767,7 @@
       } else if (win) { const r = this.castleHp / this.castleMax; stars = this.overtime ? 1 : r >= 0.8 ? 3 : r >= 0.4 ? 2 : 1; }
       this.stars = stars;
       ED.save.stageEnd(this, win || stars > 0, stars);
+      ED.T.onEnd(this, win, stars);
       ED.ui && ED.ui.onEnd(this, win, stars);
     }
 

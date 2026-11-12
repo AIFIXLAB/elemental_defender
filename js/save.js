@@ -4,7 +4,7 @@
   const KEY = 'elemental_defenders_save_v1';
   const fresh = () => ({ v: 1, created: Date.now(), highest: 1, stars: {}, discovered: {}, seen: {}, seeds: {}, current: null, totals: { kills: 0, merges: 0, wins: 0, losses: 0, playTime: 0 } });
   const S = ED.save = { data: fresh(), available: true };
-  ED.settings = { sound: true, vol: 0.6, music: true, mvol: 0.45, quality: 1, shake: 1, speed: 1 };
+  ED.settings = { sound: true, vol: 0.6, music: true, mvol: 0.5, mStyle: 'epic', mDensity: 1, mTempo: 1, quality: 1, shake: 1, speed: 1 };
   S.load = function () {
     try {
       const raw = localStorage.getItem(KEY);

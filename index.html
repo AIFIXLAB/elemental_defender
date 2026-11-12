@@ -40,7 +40,7 @@
   <header class="world-head">
     <button class="btn ghost" id="w-back">‹ หน้าหลัก</button>
     <div class="world-title"><img src="assets/ui/logo.png" alt=""><div><b>แผนที่การผจญภัย</b><small id="w-sub"></small></div></div>
-    <button class="btn gold" id="w-codex">🏆 สมุดบันทึก</button>
+    <span class="whead-btns"><button class="btn" id="w-codex">📖 สมุดบันทึก</button><button class="btn gold" id="w-troph">🏆 ถ้วยรางวัล <b id="w-tcount"></b></button></span>
   </header>
   <div class="continue-bar hidden" id="w-continue"></div>
   <div class="stage-grid" id="stage-grid"></div>
@@ -85,6 +85,7 @@
 </section>
 
 <!-- MODAL -->
+<div class="tpops" id="tpop"></div>
 <div class="modal-wrap hidden" id="modal"><div class="modal" id="modal-box"></div></div>
 <div class="rotate-hint">หมุนอุปกรณ์เป็นแนวนอนเพื่อประสบการณ์ที่ดีที่สุด ↻</div>
 
@@ -98,6 +99,8 @@
 <script src="js/audio.js"></script>
 <script src="js/music.js"></script>
 <script src="js/save.js"></script>
+<script src="js/trophy_data.js"></script>
+<script src="js/trophies.js"></script>
 <script src="js/game.js"></script>
 <script src="js/ui.js"></script>
 </body>

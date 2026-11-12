@@ -18,6 +18,7 @@
       A.verb = c.createConvolver(); A.verb.buffer = impulse(c, 2.2, 2.8);
       A.verbIn = c.createGain(); A.verbIn.gain.value = 0.35; A.verbIn.connect(A.verb); A.verb.connect(A.sfx);
       A.apply();
+      ED.Music && ED.Music.prepare();
       if (A.pending) { const p = A.pending; A.pending = null; A.music(p); }
     } catch (e) { A.ctx = null; }
   };
